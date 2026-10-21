@@ -62,3 +62,27 @@ services:
           name: food-guide-gateway
           type: web
           envVarKey: INTERNAL_API_KEY
+      - key: CACHE_DB_HOST
+        fromService:
+          name: food-guide-restaurant
+          type: web
+          envVarKey: DB_HOST
+      - key: CACHE_DB_PORT
+        value: "4000"
+      - key: CACHE_DB_USER
+        fromService:
+          name: food-guide-restaurant
+          type: web
+          envVarKey: DB_USER
+      - key: CACHE_DB_PASSWORD
+        fromService:
+          name: food-guide-restaurant
+          type: web
+          envVarKey: DB_PASSWORD
+      - key: CACHE_DB_NAME
+        fromService:
+          name: food-guide-restaurant
+          type: web
+          envVarKey: DB_NAME
+      - key: CACHE_DB_SSL
+        value: "true"

@@ -22,6 +22,13 @@ services:
     build: ./translation-service
     environment:
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-food-guide-local-dev}
+      CACHE_DB_HOST: mysql
+      CACHE_DB_PORT: 3306
+      CACHE_DB_USER: root
+      CACHE_DB_PASSWORD: root
+      CACHE_DB_NAME: foodguide
+      CACHE_DB_SSL: "false"
+    depends_on: { mysql: { condition: service_healthy } }
   gateway:
     build: ./gateway
     ports: ["8080:8080"]

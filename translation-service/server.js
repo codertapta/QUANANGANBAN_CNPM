@@ -1,4 +1,7 @@
 const express = require("express");
+const mysql = require("mysql2/promise");
+const crypto = require("node:crypto");
+const demoTranslations = require("./demo-translations.json");
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -11,6 +14,90 @@ app.use((req, res, next) => {
 
 const MM = { vi: "vi", en: "en", zh: "zh-CN", ja: "ja", ko: "ko" }; // mã ngôn ngữ MyMemory
 const cache = new Map();
+const inFlight = new Map();
+const normalizeText = (text) => text.normalize("NFC").trim().replace(/\s+/g, " ");
+const bundledDemoTranslations = Object.fromEntries(
+  Object.entries(demoTranslations).map(([text, translations]) => [normalizeText(text), translations]),
+);
+const cacheDb = process.env.CACHE_DB_HOST && process.env.CACHE_DB_USER && process.env.CACHE_DB_NAME
+  ? mysql.createPool({
+      host: process.env.CACHE_DB_HOST,
+      port: +(process.env.CACHE_DB_PORT || 3306),
+      user: process.env.CACHE_DB_USER,
+      password: process.env.CACHE_DB_PASSWORD || "",
+      database: process.env.CACHE_DB_NAME,
+      waitForConnections: true,
+      connectionLimit: 5,
+      charset: "utf8mb4",
+      ssl: process.env.CACHE_DB_SSL === "true" ? { minVersion: "TLSv1.2" } : undefined,
+    })
+  : null;
+let cacheTableReady = false;
+let cacheTableInit;
+
+async function ensureCacheTable() {
+  if (!cacheDb) return false;
+  if (cacheTableReady) return true;
+  if (!cacheTableInit) {
+    cacheTableInit = cacheDb.query(`CREATE TABLE IF NOT EXISTS translation_cache (
+      cache_key CHAR(64) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+      source_lang VARCHAR(5) NOT NULL,
+      target_lang VARCHAR(5) NOT NULL,
+      translated_text MEDIUMTEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) CHARACTER SET utf8mb4`)
+      .then(() => {
+        cacheTableReady = true;
+        console.log("Persistent translation cache ready");
+        return true;
+      })
+      .catch((e) => {
+        console.error("Persistent translation cache unavailable:", e.code || e.message);
+        return false;
+      })
+      .finally(() => { cacheTableInit = null; });
+  }
+  return cacheTableInit;
+}
+
+function cacheKey(source, target, text) {
+  return crypto.createHash("sha256").update(`${source}|${target}|${text}`).digest("hex");
+}
+
+async function readCache(key) {
+  if (cache.has(key)) return cache.get(key);
+  if (await ensureCacheTable()) {
+    try {
+      const [[row]] = await cacheDb.query(
+        "SELECT translated_text FROM translation_cache WHERE cache_key = ?",
+        [key],
+      );
+      if (row) {
+        cache.set(key, row.translated_text);
+        return row.translated_text;
+      }
+    } catch (e) {
+      console.error("Translation cache read failed:", e.code || e.message);
+    }
+  }
+  return undefined;
+}
+
+async function writeCache(key, source, target, translatedText) {
+  cache.set(key, translatedText);
+  if (await ensureCacheTable()) {
+    try {
+      await cacheDb.query(
+        `INSERT INTO translation_cache (cache_key, source_lang, target_lang, translated_text)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE translated_text = VALUES(translated_text)`,
+        [key, source, target, translatedText],
+      );
+    } catch (e) {
+      console.error("Translation cache write failed:", e.code || e.message);
+    }
+  }
+}
 
 function chunk(text, max = 450) {
   // MyMemory giới hạn ~500 ký tự/yêu cầu
@@ -45,14 +132,34 @@ app.post("/translate", async (req, res) => {
   if (!text || !MM[source] || !MM[target])
     return res.status(400).json({ error: "Tham số không hợp lệ" });
   if (source === target) return res.json({ text });
-  const key = `${source}|${target}|${text}`;
-  if (cache.has(key)) return res.json({ text: cache.get(key), cached: true });
-  try {
+  // Pretranslated current demo restaurants so the presentation doesn't depend on a live free API quota.
+  const bundled = source === "vi" && bundledDemoTranslations[normalizeText(text)]?.[target];
+  if (bundled) {
+    return res.json({ text: bundled, cached: true });
+  }
+  const key = cacheKey(source, target, text);
+  const cached = await readCache(key);
+  if (cached !== undefined) return res.json({ text: cached, cached: true });
+  if (inFlight.has(key)) {
+    try {
+      return res.json({ text: await inFlight.get(key), cached: true });
+    } catch (e) {
+      return res.status(502).json({
+        error: "Dịch vụ dịch (MyMemory) không phản hồi hoặc hết hạn mức: " + e.message,
+      });
+    }
+  }
+  const translation = (async () => {
     const out = [];
     for (const c of chunk(text))
       out.push(await mymemory(c, MM[source], MM[target]));
     const result = out.join(" ").trim();
-    cache.set(key, result);
+    await writeCache(key, source, target, result);
+    return result;
+  })();
+  inFlight.set(key, translation);
+  try {
+    const result = await translation;
     res.json({ text: result });
   } catch (e) {
     console.error(e.message);
@@ -63,6 +170,8 @@ app.post("/translate", async (req, res) => {
           "Dịch vụ dịch (MyMemory) không phản hồi hoặc hết hạn mức: " +
           e.message,
       });
+  } finally {
+    inFlight.delete(key);
   }
 });
 
@@ -93,4 +202,7 @@ app.get("/tts", async (req, res) => {
     res.status(502).end();
   }
 });
+if (cacheDb) void ensureCacheTable();
+else console.log("Persistent translation cache disabled; using memory only");
+
 app.listen(3002, () => console.log("translation-service :3002"));
