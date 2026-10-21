@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin – Quản lý quán ăn</title>
+<style>
+:root{--bg:#f1f3f6;--card:#fff;--tx:#1d2430;--mut:#6b7686;--ac:#2563eb;--bd:#dde2ea;--red:#dc2626}
+@media(prefers-color-scheme:dark){:root{--bg:#12161c;--card:#1b212a;--tx:#e8ecf2;--mut:#94a0b0;--ac:#5b8def;--bd:#2b3441;--red:#f87171}}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--tx)}
+.wrap{max-width:1000px;margin:auto;padding:16px}h1{margin:0 0 14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.stat{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px}.stat b{font-size:1.6rem;display:block}.stat span{color:var(--mut);font-size:.85rem}
+.panel{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.full{grid-column:1/-1}
+label{font-size:.82rem;color:var(--mut);display:flex;flex-direction:column;gap:4px}
+input,select,textarea,button{font:inherit;padding:9px 11px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)}
+textarea{min-height:100px;resize:vertical}button{cursor:pointer}.pri{background:var(--ac);color:#fff;border:none;font-weight:600}.del{color:var(--red)}
+.row{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--bd)}
+.row img{width:64px;height:64px;object-fit:cover;border-radius:8px}.row .i{flex:1;min-width:0}.row .i small{color:var(--mut);display:block}
+#msg{padding:8px 0;min-height:1.4em;font-weight:600}#msg.err{color:var(--red)}#msg.ok{color:#16a34a}
+#prev{max-width:160px;max-height:110px;border-radius:8px;margin-top:6px}
+@media(max-width:600px){.grid{grid-template-columns:1fr}}
+</style></head><body><div class="wrap">
+<h1>🛠 Dashboard Admin</h1>
+<div class="stats"><div class="stat"><b id="sTotal">0</b><span>Tổng số quán</span></div>
+<div class="stat"><b id="sLang">0</b><span>Ngôn ngữ mô tả đang dùng</span></div>
+<div class="stat"><b id="sLast">–</b><span>Quán mới nhất</span></div></div>
+
+<div class="panel"><h3 id="ftitle" style="margin-top:0">Thêm quán ăn</h3>
+<div class="grid">
+ <label>Tên quán<input id="name"></label>
+ <label>Ngôn ngữ của đoạn mô tả
+  <select id="desc_lang"><option value="vi">Tiếng Việt</option><option value="en">English</option><option value="zh">中文</option><option value="ja">日本語</option><option value="ko">한국어</option></select></label>
+ <label class="full">Địa chỉ<input id="address"></label>
+ <label class="full">Mô tả (nội dung sẽ được đọc thuyết minh)<textarea id="description"></textarea></label>
+ <label>Vĩ độ (lat)<input id="lat" type="number" step="any"></label>
+ <label>Kinh độ (lng)<input id="lng" type="number" step="any"></label>
+ <div class="full"><button type="button" onclick="myPos()">📍 Dùng vị trí hiện tại của tôi</button></div>
+ <label class="full">Ảnh quán<input id="file" type="file" accept="image/*"><img id="prev" hidden></label>
+</div>
+<div id="msg"></div>
+<button class="pri" onclick="save()">💾 Lưu</button> <button onclick="resetForm()">Hủy / Làm mới</button></div>
+
+<div class="panel"><h3 style="margin-top:0">Danh sách quán ăn</h3><div id="list"></div></div></div>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LN={vi:'Việt',en:'Anh',zh:'Trung',ja:'Nhật',ko:'Hàn'};
+let data=[],editId=null,img='';
+const msg=(t,c)=>{$('msg').textContent=t;$('msg').className=c||''};
+
+$('file').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  const im=new Image();im.onload=()=>{
+    const s=Math.min(1,800/Math.max(im.width,im.height)),c=document.createElement('canvas');
+    c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+    img=c.toDataURL('image/jpeg',.8);$('prev').src=img;$('prev').hidden=false;
+  };im.src=URL.createObjectURL(f);
+};
+function myPos(){
+  if(!navigator.geolocation)return msg('Trình duyệt không hỗ trợ định vị','err');
+  navigator.geolocation.getCurrentPosition(p=>{$('lat').value=p.coords.latitude.toFixed(6);$('lng').value=p.coords.longitude.toFixed(6);msg('')},
+    ()=>msg('Không lấy được vị trí (cần HTTPS/cấp quyền). Hãy nhập tay tọa độ.','err'),{enableHighAccuracy:true,timeout:15000});
+}
+async function load(){
+  data=await (await fetch('/api/restaurants')).json();
+  $('sTotal').textContent=data.length;$('sLang').textContent=new Set(data.map(d=>d.desc_lang)).size;
+  $('sLast').textContent=data[0]?.name||'–';$('sLast').style.fontSize='1rem';
+  $('list').innerHTML=data.length?data.map(r=>`<div class="row"><img src="${r.image}">
+   <div class="i"><b>${esc(r.name)}</b><small>${esc(r.address)}</small><small>${r.lat}, ${r.lng} · Mô tả: tiếng ${LN[r.desc_lang]}</small></div>
+   <button onclick="edit(${r.id})">✏️ Sửa</button><button class="del" onclick="del(${r.id})">🗑 Xóa</button></div>`).join('')
+   :'<p style="color:var(--mut)">Chưa có quán nào. Hãy thêm quán đầu tiên ở trên.</p>';
+}
+function edit(id){
+  const r=data.find(x=>x.id===id);editId=id;img=r.image;
+  ['name','address','description','desc_lang','lat','lng'].forEach(k=>$(k).value=r[k]);
+  $('prev').src=img;$('prev').hidden=false;$('ftitle').textContent='Sửa quán #'+id;scrollTo({top:0,behavior:'smooth'});
+}
+function resetForm(){editId=null;img='';['name','address','description','lat','lng'].forEach(k=>$(k).value='');$('file').value='';$('prev').hidden=true;$('ftitle').textContent='Thêm quán ăn';msg('')}
+async function save(){
+  const body={name:$('name').value,address:$('address').value,description:$('description').value,desc_lang:$('desc_lang').value,lat:$('lat').value,lng:$('lng').value,image:img};
+  const r=await fetch('/api/restaurants'+(editId?'/'+editId:''),{method:editId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json();
+  if(!r.ok)return msg(j.error,'err');
+  resetForm();msg('Đã lưu thành công','ok');load();
+}
+async function del(id){
+  if(!confirm('Xóa quán này? Khách hàng cũng sẽ không còn thấy quán.'))return;
+  await fetch('/api/restaurants/'+id,{method:'DELETE'});load();
+}
+load();
+</script></body></html>

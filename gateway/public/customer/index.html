@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Khám phá quán ăn gần bạn1</title>
+    <style>
+      :root {
+        --bg: #faf7f2;
+        --card: #fff;
+        --tx: #2b2118;
+        --mut: #7a6a5a;
+        --ac: #d9531e;
+        --bd: #eadfce;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1b1612;
+          --card: #262019;
+          --tx: #f3e9dc;
+          --mut: #b2a290;
+          --ac: #ff7a45;
+          --bd: #3a3026;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--tx);
+      }
+      header {
+        padding: 20px 16px 8px;
+        max-width: 860px;
+        margin: auto;
+      }
+      h1 {
+        margin: 0;
+        font-size: 1.5rem;
+      }
+      .bar {
+        max-width: 860px;
+        margin: auto;
+        padding: 8px 16px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: end;
+      }
+      label {
+        font-size: 0.8rem;
+        color: var(--mut);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      select,
+      button {
+        font: inherit;
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--bd);
+        background: var(--card);
+        color: var(--tx);
+      }
+      button {
+        cursor: pointer;
+      }
+      button.pri {
+        background: var(--ac);
+        color: #fff;
+        border: none;
+        font-weight: 600;
+      }
+      #status {
+        max-width: 860px;
+        margin: 6px auto;
+        padding: 0 16px;
+        color: var(--mut);
+        min-height: 1.4em;
+      }
+      #status.err {
+        color: #d33;
+        font-weight: 600;
+      }
+      #list {
+        max-width: 860px;
+        margin: auto;
+        padding: 8px 16px 40px;
+        display: grid;
+        gap: 14px;
+      }
+      .card {
+        display: flex;
+        gap: 14px;
+        background: var(--card);
+        border: 1px solid var(--bd);
+        border-radius: 14px;
+        overflow: hidden;
+      }
+      .card img {
+        width: 150px;
+        object-fit: cover;
+        flex-shrink: 0;
+      }
+      .card .b {
+        padding: 12px 12px 12px 0;
+        flex: 1;
+      }
+      .card h3 {
+        margin: 0 0 4px;
+      }
+      .dist {
+        color: var(--ac);
+        font-weight: 600;
+        font-size: 0.9rem;
+      }
+      .addr {
+        color: var(--mut);
+        font-size: 0.9rem;
+        margin: 2px 0 8px;
+      }
+      .desc {
+        font-size: 0.92rem;
+        margin: 6px 0 10px;
+      }
+      .empty {
+        text-align: center;
+        padding: 40px;
+        color: var(--mut);
+        background: var(--card);
+        border: 1px dashed var(--bd);
+        border-radius: 14px;
+      }
+      @media (max-width: 520px) {
+        .card {
+          flex-direction: column;
+        }
+        .card img {
+          width: 100%;
+          height: 160px;
+        }
+        .card .b {
+          padding: 0 12px 12px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header><h1>🍜 Quán ăn quanh bạn1</h1></header>
+    <div class="bar">
+      <button class="pri" id="locate">📍 Lấy vị trí hiện tại của bạn</button>
+      <label
+        >Phạm vi hiển thị
+        <select id="radius">
+          <option value="100">100 m</option>
+          <option value="300">300 m</option>
+          <option value="500">500 m</option>
+          <option value="1000" selected>1 km</option>
+          <option value="2000">2 km</option>
+          <option value="5000">5 km</option>
+        </select></label
+      >
+      <label
+        >Ngôn ngữ thuyết minh
+        <select id="lang">
+          <option value="vi">Tiếng Việt</option>
+          <option value="en">English</option>
+          <option value="zh">中文</option>
+          <option value="ja">日本語</option>
+          <option value="ko">한국어</option>
+        </select></label
+      >
+    </div>
+    <div id="status">Bấm “Lấy vị trí” để bắt đầu.</div>
+    <div id="list"></div>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const TTS = {
+        vi: "vi-VN",
+        en: "en-US",
+        zh: "zh-CN",
+        ja: "ja-JP",
+        ko: "ko-KR",
+      };
+      const esc = (s) =>
+        String(s).replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+      let pos = null,
+        items = [],
+        speakingId = null;
+      function status(t, err) {
+        $("status").textContent = t;
+        $("status").className = err ? "err" : "";
+      }
+
+      $("locate").onclick = () => {
+        if (!navigator.geolocation)
+          return status("Trình duyệt không hỗ trợ định vị.", 1);
+        if (!window.isSecureContext)
+          return status(
+            "Cần truy cập bằng HTTPS (hoặc localhost) để lấy vị trí.",
+            1,
+          );
+        status("Đang lấy vị trí...");
+        navigator.geolocation.getCurrentPosition(
+          (p) => {
+            pos = {
+              lat: p.coords.latitude,
+              lng: p.coords.longitude,
+              acc: p.coords.accuracy,
+            };
+            load();
+          },
+          (e) => {
+            const m = {
+              1: "Bạn đã từ chối quyền vị trí. Hãy cho phép vị trí trong cài đặt trình duyệt rồi thử lại.",
+              2: "Không xác định được vị trí (thiết bị không lấy được tọa độ / GPS yếu).",
+              3: "Hết thời gian chờ lấy vị trí. Hãy thử lại.",
+            };
+            status(m[e.code] || "Không lấy được vị trí.", 1);
+          },
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+        );
+      };
+      $("radius").onchange = () => pos && load();
+
+      async function load() {
+        stopAll();
+        const radius = $("radius").value;
+        status("Đang tìm quán ăn...");
+        try {
+          const r = await fetch(
+            `/api/restaurants/nearby?lat=${pos.lat}&lng=${pos.lng}&radius=${radius}`,
+          );
+          if (!r.ok) throw new Error();
+          items = await r.json();
+        } catch {
+          return status("Không tải được danh sách quán. Thử lại sau.", 1);
+        }
+        const km = radius >= 1000 ? radius / 1000 + " km" : radius + " m";
+        const warn =
+          pos.acc > 100
+            ? ` ⚠️ GPS kém chính xác (±${Math.round(pos.acc)} m).`
+            : ` (độ chính xác ±${Math.round(pos.acc)} m)`;
+        $("list").innerHTML = items.length
+          ? items.map(card).join("")
+          : '<div class="empty">Không có quán ăn nào trong phạm vi này.</div>';
+        status(
+          `Vị trí: ${pos.lat.toFixed(5)}, ${pos.lng.toFixed(5)}${warn} — Phạm vi ${km}: ${items.length} quán.`,
+          pos.acc > 100,
+        );
+        if (!items.length)
+          status(`Không có quán ăn nào trong phạm vi ${km}.${warn}`, 0);
+      }
+      const card = (r) => `<div class="card"><img src="${r.image}" alt="">
+ <div class="b"><h3>${esc(r.name)}</h3><div class="dist">Cách bạn ${r.distance >= 1000 ? (r.distance / 1000).toFixed(2) + " km" : r.distance + " m"}</div>
+ <div class="addr">📍 ${esc(r.address)}</div><div class="desc">${esc(r.description.slice(0, 140))}${r.description.length > 140 ? "…" : ""}</div>
+ <button class="pri" id="b${r.id}" onclick="narrate(${r.id})">🔊 Thuyết minh</button></div></div>`;
+
+      const player = new Audio();
+      const SILENT =
+        "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+      let voices = [];
+      function loadVoices() {
+        voices = speechSynthesis.getVoices();
+      }
+      loadVoices();
+      speechSynthesis.onvoiceschanged = loadVoices;
+      function waitVoices(ms = 1500) {
+        return new Promise((res) => {
+          loadVoices();
+          if (voices.length) return res();
+          const t = setTimeout(() => {
+            loadVoices();
+            res();
+          }, ms);
+          speechSynthesis.addEventListener(
+            "voiceschanged",
+            () => {
+              clearTimeout(t);
+              loadVoices();
+              res();
+            },
+            { once: true },
+          );
+        });
+      }
+      function pickVoice(lang) {
+        const p = lang.slice(0, 2).toLowerCase();
+        const c = voices.filter((v) =>
+          v.lang.replace("_", "-").toLowerCase().startsWith(p),
+        );
+        return (
+          c.find((v) => /natural|online/i.test(v.name)) ||
+          c.find((v) => /google/i.test(v.name)) ||
+          c[0] ||
+          null
+        );
+      }
+      function splitText(t, max = 170) {
+        const parts = t.match(/[^.!?。！？\n]+[.!?。！？]*/g) || [t];
+        const out = [];
+        let cur = "";
+        for (const s of parts) {
+          if ((cur + s).length > max && cur) {
+            out.push(cur.trim());
+            cur = "";
+          }
+          cur += s;
+          while (cur.length > max) {
+            let i = cur.lastIndexOf(" ", max);
+            if (i <= 0) i = max;
+            out.push(cur.slice(0, i).trim());
+            cur = cur.slice(i);
+          }
+        }
+        if (cur.trim()) out.push(cur.trim());
+        return out.filter(Boolean);
+      }
+      function stopAll() {
+        speakingId = null;
+        speechSynthesis.cancel();
+        player.onended = null;
+        player.onerror = null;
+        player.pause();
+        reset();
+      }
+      // Dự phòng: giọng đọc trực tuyến qua backend khi thiết bị không có giọng phù hợp
+      function playServer(chunks, i, lang, id) {
+        const next = () => {
+          if (speakingId !== id) return;
+          if (i >= chunks.length) return stopAll();
+          player.onended = next;
+          player.onerror = () => {
+            if (speakingId === id) {
+              stopAll();
+              status(
+                "Không phát được giọng đọc trực tuyến (kiểm tra kết nối mạng).",
+                1,
+              );
+            }
+          };
+          player.src =
+            "/api/tts?lang=" + lang + "&q=" + encodeURIComponent(chunks[i++]);
+          player.play().catch(() => {
+            if (speakingId === id) {
+              stopAll();
+              status(
+                "Trình duyệt chặn phát âm thanh. Hãy bấm lại nút Thuyết minh.",
+                1,
+              );
+            }
+          });
+        };
+        next();
+      }
+      function playBrowser(chunks, lang, id, v) {
+        let i = 0;
+        const next = () => {
+          if (speakingId !== id) return;
+          if (i >= chunks.length) return stopAll();
+          const idx = i++;
+          const u = new SpeechSynthesisUtterance(chunks[idx]);
+          u.lang = TTS[lang];
+          u.voice = v;
+          u.rate = 0.95;
+          u.onend = next;
+          u.onerror = (ev) => {
+            if (ev.error === "interrupted" || ev.error === "canceled") return;
+            if (speakingId === id) {
+              status(
+                "Giọng đọc của thiết bị bị lỗi, chuyển sang giọng đọc trực tuyến...",
+                1,
+              );
+              speechSynthesis.cancel();
+              playServer(chunks, idx, lang, id);
+            }
+          };
+          speechSynthesis.speak(u);
+        };
+        next();
+      }
+      async function narrate(id) {
+        const btn = $("b" + id);
+        if (speakingId === id) return stopAll();
+        stopAll();
+        player.src = SILENT;
+        player.play().catch(() => {}); // mở khóa phát âm thanh trên iPhone/Android
+        const r = items.find((x) => x.id === id),
+          lang = $("lang").value;
+        btn.textContent = "⏳ Đang dịch...";
+        let text = r.description;
+        if (r.desc_lang !== lang) {
+          try {
+            const t = await fetch("/api/translate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                text: r.description,
+                source: r.desc_lang,
+                target: lang,
+              }),
+            });
+            const j = await t.json();
+            if (!t.ok) throw new Error(j.error);
+            text = j.text;
+          } catch (e) {
+            reset();
+            return status("Lỗi dịch: " + e.message, 1);
+          }
+        }
+        await waitVoices();
+        const v = pickVoice(TTS[lang]);
+        const chunks = splitText(text, v ? 180 : 170);
+        speakingId = id;
+        btn.textContent = "⏹ Dừng";
+        if (v) {
+          status("Giọng đọc: " + v.name + " (" + v.lang + ")");
+          playBrowser(chunks, lang, id, v);
+        } else {
+          status(
+            "Thiết bị chưa có giọng đọc cho ngôn ngữ này – đang dùng giọng đọc trực tuyến.",
+          );
+          playServer(chunks, 0, lang, id);
+        }
+      }
+      function reset() {
+        document
+          .querySelectorAll(".card button")
+          .forEach((b) => (b.textContent = "🔊 Thuyết minh"));
+      }
+    </script>
+  </body>
+</html>
