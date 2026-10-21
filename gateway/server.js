@@ -2,21 +2,30 @@ const express = require("express");
 const path = require("path");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 const app = express();
-const R = process.env.RESTAURANT_URL || "http://localhost:3001";
-const T = process.env.TRANSLATE_URL || "http://localhost:3002";
+const internalUrl = (value, fallback) => {
+  const target = (value || fallback).trim();
+  return /^[a-z][a-z\d+.-]*:\/\//i.test(target)
+    ? target
+    : `http://${target}`;
+};
+const R = internalUrl(process.env.RESTAURANT_URL, "http://localhost:3001");
+const T = internalUrl(process.env.TRANSLATE_URL, "http://localhost:3002");
 
 // Truy cập qua đường hầm Cloudflare (internet) thì chặn /admin và các thao tác ghi, trừ khi ALLOW_REMOTE_ADMIN=1
 app.use((req, res, next) => {
-  const remote = !!req.headers["cf-connecting-ip"];
-  if (remote && process.env.ALLOW_REMOTE_ADMIN !== "1") {
+  const isLocal = req.hostname === "localhost" || req.hostname === "127.0.0.1";
+
+  if (!isLocal && process.env.ALLOW_REMOTE_ADMIN !== "1") {
     const write =
       req.path.startsWith("/api/restaurants") && req.method !== "GET";
-    if (req.path.startsWith("/admin") || write)
+
+    if (req.path.startsWith("/admin") || write) {
       return res.status(403).send("Admin chỉ dùng trên máy chủ (localhost).");
+    }
   }
+
   next();
 });
-
 app.use(
   createProxyMiddleware("/api/restaurants", {
     target: R,
@@ -42,4 +51,7 @@ app.use(
 app.use("/customer", express.static(path.join(__dirname, "public/customer")));
 app.use("/admin", express.static(path.join(__dirname, "public/admin")));
 app.get("/", (_q, res) => res.redirect("/customer"));
-app.listen(8080, () => console.log("gateway :8080  ->  /customer  và  /admin"));
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, "0.0.0.0", () =>
+  console.log(`gateway :${PORT} -> /customer và /admin`),
+);

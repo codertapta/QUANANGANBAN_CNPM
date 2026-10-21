@@ -11,7 +11,8 @@ const pool = mysql.createPool({
 });
 
 async function init() {
-  for (let i = 0; i < 30; i++) {
+  // Render services start independently; allow MySQL extra time on its first boot.
+  for (let i = 0; i < 120; i++) {
     try {
       await pool.query(`CREATE TABLE IF NOT EXISTS restaurants (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -25,7 +26,7 @@ async function init() {
         INDEX idx_geo (lat, lng)
       ) CHARACTER SET utf8mb4`);
       console.log('DB ready'); return;
-    } catch (e) { console.log('Waiting for DB...', e.code); await new Promise(r => setTimeout(r, 2000)); }
+    } catch (e) { console.log('Waiting for DB...', e.code); await new Promise(r => setTimeout(r, 3000)); }
   }
   process.exit(1);
 }
