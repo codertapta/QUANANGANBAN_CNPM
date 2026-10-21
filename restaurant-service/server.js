@@ -3,15 +3,25 @@ const mysql = require('mysql2/promise');
 const app = express();
 app.use(express.json({ limit: '8mb' }));
 
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+app.use((req, res, next) => {
+  if (!INTERNAL_API_KEY || req.get('x-internal-api-key') !== INTERNAL_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+});
+
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost', port: +(process.env.DB_PORT || 3306),
   user: process.env.DB_USER || 'root', password: process.env.DB_PASSWORD || 'root',
   database: process.env.DB_NAME || 'foodguide',
-  waitForConnections: true, connectionLimit: 15, charset: 'utf8mb4'
+  waitForConnections: true, connectionLimit: 15, charset: 'utf8mb4',
+  ssl: process.env.DB_SSL === 'true' ? { minVersion: 'TLSv1.2' } : undefined,
 });
 
 async function init() {
-  for (let i = 0; i < 30; i++) {
+  // Render services start independently; allow MySQL extra time on its first boot.
+  for (let i = 0; i < 120; i++) {
     try {
       await pool.query(`CREATE TABLE IF NOT EXISTS restaurants (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -25,7 +35,7 @@ async function init() {
         INDEX idx_geo (lat, lng)
       ) CHARACTER SET utf8mb4`);
       console.log('DB ready'); return;
-    } catch (e) { console.log('Waiting for DB...', e.code); await new Promise(r => setTimeout(r, 2000)); }
+    } catch (e) { console.log('Waiting for DB...', e.code); await new Promise(r => setTimeout(r, 3000)); }
   }
   process.exit(1);
 }

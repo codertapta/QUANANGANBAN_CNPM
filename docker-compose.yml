@@ -12,10 +12,16 @@ services:
   restaurant-service:
     build: ./restaurant-service
     environment:
-      { DB_HOST: mysql, DB_USER: root, DB_PASSWORD: root, DB_NAME: foodguide }
+      DB_HOST: mysql
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_NAME: foodguide
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-food-guide-local-dev}
     depends_on: { mysql: { condition: service_healthy } }
   translation-service:
     build: ./translation-service
+    environment:
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-food-guide-local-dev}
   gateway:
     build: ./gateway
     ports: ["8080:8080"]
@@ -24,6 +30,7 @@ services:
     environment:
       RESTAURANT_URL: http://restaurant-service:3001
       TRANSLATE_URL: http://translation-service:3002
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-food-guide-local-dev}
     depends_on: [restaurant-service, translation-service]
   tunnel:
     image: cloudflare/cloudflared:latest
