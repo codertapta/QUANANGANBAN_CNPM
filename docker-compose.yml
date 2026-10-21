@@ -28,6 +28,8 @@ services:
       CACHE_DB_PASSWORD: root
       CACHE_DB_NAME: foodguide
       CACHE_DB_SSL: "false"
+      AZURE_TRANSLATOR_KEY: ${AZURE_TRANSLATOR_KEY:-}
+      AZURE_TRANSLATOR_REGION: ${AZURE_TRANSLATOR_REGION:-}
     depends_on: { mysql: { condition: service_healthy } }
   gateway:
     build: ./gateway

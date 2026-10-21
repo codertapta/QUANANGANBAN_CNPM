@@ -13,6 +13,9 @@ app.use((req, res, next) => {
 });
 
 const MM = { vi: "vi", en: "en", zh: "zh-CN", ja: "ja", ko: "ko" }; // mã ngôn ngữ MyMemory
+const AZURE_LANGS = { vi: "vi", en: "en", zh: "zh-Hans", ja: "ja", ko: "ko" };
+const AZURE_TRANSLATOR_KEY = process.env.AZURE_TRANSLATOR_KEY;
+const AZURE_TRANSLATOR_REGION = process.env.AZURE_TRANSLATOR_REGION;
 const cache = new Map();
 const inFlight = new Map();
 const normalizeText = (text) => text.normalize("NFC").trim().replace(/\s+/g, " ");
@@ -127,6 +130,48 @@ async function mymemory(q, from, to) {
   return j.responseData.translatedText;
 }
 
+async function azureTranslate(q, from, to) {
+  const url = new URL("https://api.cognitive.microsofttranslator.com/translate");
+  url.searchParams.set("api-version", "3.0");
+  url.searchParams.set("from", AZURE_LANGS[from]);
+  url.searchParams.set("to", AZURE_LANGS[to]);
+  const headers = {
+    "Ocp-Apim-Subscription-Key": AZURE_TRANSLATOR_KEY,
+    "Content-Type": "application/json; charset=UTF-8",
+  };
+  if (AZURE_TRANSLATOR_REGION) {
+    headers["Ocp-Apim-Subscription-Region"] = AZURE_TRANSLATOR_REGION;
+  }
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify([{ Text: q }]),
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result.error?.message || `Azure Translator HTTP ${response.status}`);
+  }
+  const translated = result?.[0]?.translations?.[0]?.text;
+  if (typeof translated !== "string") throw new Error("Azure Translator returned an invalid response");
+  return translated;
+}
+
+async function translateChunk(q, source, target) {
+  if (AZURE_TRANSLATOR_KEY) {
+    try {
+      return await azureTranslate(q, source, target);
+    } catch (azureError) {
+      console.error("Azure Translator failed; trying MyMemory fallback:", azureError.message);
+      try {
+        return await mymemory(q, MM[source], MM[target]);
+      } catch (myMemoryError) {
+        throw new Error(`Azure Translator: ${azureError.message}; MyMemory: ${myMemoryError.message}`);
+      }
+    }
+  }
+  return mymemory(q, MM[source], MM[target]);
+}
+
 app.post("/translate", async (req, res) => {
   const { text, source, target } = req.body || {};
   if (!text || !MM[source] || !MM[target])
@@ -152,7 +197,7 @@ app.post("/translate", async (req, res) => {
   const translation = (async () => {
     const out = [];
     for (const c of chunk(text))
-      out.push(await mymemory(c, MM[source], MM[target]));
+      out.push(await translateChunk(c, source, target));
     const result = out.join(" ").trim();
     await writeCache(key, source, target, result);
     return result;
@@ -166,9 +211,7 @@ app.post("/translate", async (req, res) => {
     res
       .status(502)
       .json({
-        error:
-          "Dịch vụ dịch (MyMemory) không phản hồi hoặc hết hạn mức: " +
-          e.message,
+        error: "Dịch vụ dịch không phản hồi hoặc hết hạn mức: " + e.message,
       });
   } finally {
     inFlight.delete(key);

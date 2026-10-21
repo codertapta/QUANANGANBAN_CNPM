@@ -86,3 +86,7 @@ services:
           envVarKey: DB_NAME
       - key: CACHE_DB_SSL
         value: "true"
+      - key: AZURE_TRANSLATOR_KEY
+        sync: false
+      - key: AZURE_TRANSLATOR_REGION
+        sync: false
