@@ -1,64 +1,4 @@
 services:
-  - type: pserv
-    name: food-guide-mysql
-    runtime: docker
-    plan: 0.5c-512mb
-    region: singapore
-    rootDir: mysql
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    envVars:
-      - key: MYSQL_DATABASE
-        value: foodguide
-      - key: MYSQL_USER
-        value: foodguide_app
-      - key: MYSQL_PASSWORD
-        generateValue: true
-      - key: MYSQL_ROOT_PASSWORD
-        generateValue: true
-    disk:
-      name: mysql-data
-      mountPath: /var/lib/mysql
-      sizeGB: 10
-
-  - type: pserv
-    name: food-guide-restaurant
-    runtime: docker
-    plan: 0.5c-512mb
-    region: singapore
-    rootDir: restaurant-service
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    envVars:
-      - key: DB_HOST
-        fromService:
-          name: food-guide-mysql
-          type: pserv
-          property: host
-      - key: DB_PORT
-        value: "3306"
-      - key: DB_USER
-        fromService:
-          name: food-guide-mysql
-          type: pserv
-          envVarKey: MYSQL_USER
-      - key: DB_PASSWORD
-        fromService:
-          name: food-guide-mysql
-          type: pserv
-          envVarKey: MYSQL_PASSWORD
-      - key: DB_NAME
-        value: foodguide
-
-  - type: pserv
-    name: food-guide-translation
-    runtime: docker
-    plan: 0.5c-512mb
-    region: singapore
-    rootDir: translation-service
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-
   - type: web
     name: food-guide-gateway
     runtime: docker
@@ -68,13 +8,57 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     envVars:
+      - key: INTERNAL_API_KEY
+        generateValue: true
       - key: RESTAURANT_URL
         fromService:
           name: food-guide-restaurant
-          type: pserv
-          property: hostport
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
       - key: TRANSLATE_URL
         fromService:
           name: food-guide-translation
-          type: pserv
-          property: hostport
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+
+  - type: web
+    name: food-guide-restaurant
+    runtime: docker
+    plan: free
+    region: singapore
+    rootDir: restaurant-service
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "4000"
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        value: foodguide
+      - key: DB_SSL
+        value: "true"
+      - key: INTERNAL_API_KEY
+        fromService:
+          name: food-guide-gateway
+          type: web
+          envVarKey: INTERNAL_API_KEY
+
+  - type: web
+    name: food-guide-translation
+    runtime: docker
+    plan: free
+    region: singapore
+    rootDir: translation-service
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: INTERNAL_API_KEY
+        fromService:
+          name: food-guide-gateway
+          type: web
+          envVarKey: INTERNAL_API_KEY

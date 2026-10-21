@@ -1,6 +1,13 @@
 const express = require("express");
 const app = express();
 app.use(express.json({ limit: "1mb" }));
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+app.use((req, res, next) => {
+  if (!INTERNAL_API_KEY || req.get("x-internal-api-key") !== INTERNAL_API_KEY) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  next();
+});
 
 const MM = { vi: "vi", en: "en", zh: "zh-CN", ja: "ja", ko: "ko" }; // mã ngôn ngữ MyMemory
 const cache = new Map();

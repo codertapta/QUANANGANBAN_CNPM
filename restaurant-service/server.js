@@ -3,11 +3,20 @@ const mysql = require('mysql2/promise');
 const app = express();
 app.use(express.json({ limit: '8mb' }));
 
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+app.use((req, res, next) => {
+  if (!INTERNAL_API_KEY || req.get('x-internal-api-key') !== INTERNAL_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+});
+
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost', port: +(process.env.DB_PORT || 3306),
   user: process.env.DB_USER || 'root', password: process.env.DB_PASSWORD || 'root',
   database: process.env.DB_NAME || 'foodguide',
-  waitForConnections: true, connectionLimit: 15, charset: 'utf8mb4'
+  waitForConnections: true, connectionLimit: 15, charset: 'utf8mb4',
+  ssl: process.env.DB_SSL === 'true' ? { minVersion: 'TLSv1.2' } : undefined,
 });
 
 async function init() {

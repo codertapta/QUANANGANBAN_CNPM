@@ -2,6 +2,7 @@ const express = require("express");
 const path = require("path");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 const app = express();
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 const internalUrl = (value, fallback) => {
   const target = (value || fallback).trim();
   return /^[a-z][a-z\d+.-]*:\/\//i.test(target)
@@ -31,6 +32,9 @@ app.use(
     target: R,
     changeOrigin: true,
     pathRewrite: { "^/api/restaurants": "/restaurants" },
+    onProxyReq: (proxyReq) => {
+      if (INTERNAL_API_KEY) proxyReq.setHeader("x-internal-api-key", INTERNAL_API_KEY);
+    },
   }),
 );
 app.use(
@@ -38,6 +42,9 @@ app.use(
     target: T,
     changeOrigin: true,
     pathRewrite: { "^/api/translate": "/translate" },
+    onProxyReq: (proxyReq) => {
+      if (INTERNAL_API_KEY) proxyReq.setHeader("x-internal-api-key", INTERNAL_API_KEY);
+    },
   }),
 );
 app.use(
@@ -45,6 +52,9 @@ app.use(
     target: T,
     changeOrigin: true,
     pathRewrite: { "^/api/tts": "/tts" },
+    onProxyReq: (proxyReq) => {
+      if (INTERNAL_API_KEY) proxyReq.setHeader("x-internal-api-key", INTERNAL_API_KEY);
+    },
   }),
 );
 

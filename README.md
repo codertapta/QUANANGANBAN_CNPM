@@ -17,15 +17,13 @@ Thuyết minh: khách chọn ngôn ngữ -> dịch -> đọc bằng SpeechSynthe
 Định vị cần HTTPS (trừ localhost). Cách thử nhanh: `npx localtunnel --port 8080` hoặc `cloudflared tunnel --url http://localhost:8080`.
 Để chạy lâu dài, xem mục Deploy lên Render bên dưới.
 
-## Deploy lên Render
-Repo có `render.yaml` để tạo các service theo Blueprint:
-- `food-guide-gateway`: Web Service công khai; link user có dạng `https://<domain>/customer/`.
-- `food-guide-restaurant`, `food-guide-translation`, `food-guide-mysql`: private services, chỉ nhận kết nối nội bộ.
-- MySQL dùng persistent disk tại `/var/lib/mysql`; Render tự tạo DB credentials ngẫu nhiên và truyền cho restaurant-service.
+## Deploy miễn phí lên Render
+Blueprint chạy cả ba Node service trên Render Free. Database dùng TiDB Cloud Starter ở ngoài Render vì Render Free không có MySQL bền dữ liệu; Free Postgres trên Render hết hạn sau 30 ngày. TiDB Starter tương thích với driver `mysql2` và có hạn mức miễn phí, nhưng sau khi chạm hạn mức thao tác DB sẽ bị giới hạn.
 
-1. Commit và push repo lên GitHub.
-2. Trong Render chọn **New > Blueprint**, kết nối repo này và chọn `render.yaml` ở thư mục gốc.
-3. Kiểm tra tài nguyên/chi phí Render sẽ tạo rồi chọn **Apply**. Gateway dùng Free plan; các private services dùng plan `0.5c-512mb`, MySQL có disk 10 GB.
-4. Khi deploy xong, mở URL của `food-guide-gateway` rồi chia sẻ đường dẫn `/customer/` hoặc tạo QR từ URL đó.
+1. Tạo một TiDB Cloud Starter ở chế độ **MySQL Compatible**, đặt spending limit bằng `0`, rồi tạo database `foodguide`. TiDB cấp miễn phí 5 GiB row storage và 50 triệu Request Units mỗi tháng cho mỗi instance đủ điều kiện.
+2. Lấy connection details của TiDB: host, user, password. Giữ port `4000` và bật TLS.
+3. Trong Render chọn **New > Blueprint**, kết nối repo và branch `codex/render-deploy`. Khi được hỏi, nhập `DB_HOST`, `DB_USER`, `DB_PASSWORD` từ TiDB.
+4. Xác nhận cả ba service đều dùng plan `free`, rồi Apply.
+5. Sau khi deploy, mở URL của `food-guide-gateway` và thêm `/customer/` để có link cho khách; tạo QR từ link đó.
 
-Database trên Render ban đầu trống. Nếu cần giữ dữ liệu MySQL local, hãy export bằng `mysqldump` rồi import vào MySQL trên Render. Không bật `ALLOW_REMOTE_ADMIN` nếu chưa thêm đăng nhập cho trang admin.
+Render Free service có thể ngủ sau 15 phút không hoạt động, mất khoảng một phút để thức dậy. 750 giờ chạy miễn phí là hạn mức chung của workspace, nên nhiều service hoạt động liên tục sẽ dùng hạn mức nhanh hơn. Các API phụ được bảo vệ bằng khóa nội bộ do Blueprint tạo; không chia sẻ khóa này. Admin vẫn bị chặn khi truy cập từ xa.
