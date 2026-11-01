@@ -1,0 +1,16 @@
+SET NAMES utf8mb4;
+CREATE DATABASE IF NOT EXISTS foodguide CHARACTER SET utf8mb4;
+USE foodguide;
+CREATE TABLE IF NOT EXISTS restaurants (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(200) NOT NULL,
+  address VARCHAR(300),
+  image_url MEDIUMTEXT,
+  description TEXT,
+  lat DOUBLE NOT NULL,
+  lng DOUBLE NOT NULL,
+  status ENUM('active','hidden') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_geo (status, lat, lng)
+);
