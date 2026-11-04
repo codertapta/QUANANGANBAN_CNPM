@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Thuyết minh quán ăn 1</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #f6f4ef;
+        color: #222;
+      }
+      header {
+        background: #c2410c;
+        color: #fff;
+        padding: 14px 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0;
+      }
+      main {
+        max-width: 680px;
+        margin: 0 auto;
+        padding: 12px;
+      }
+      .card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 12px;
+        margin: 10px 0;
+        box-shadow: 0 1px 3px #0002;
+      }
+      select,
+      button {
+        font: inherit;
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+        background: #fff;
+      }
+      button.p {
+        background: #c2410c;
+        color: #fff;
+        border-color: #c2410c;
+        cursor: pointer;
+      }
+      button {
+        cursor: pointer;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .muted {
+        color: #666;
+        font-size: 13px;
+      }
+      .banner {
+        border-left: 5px solid #c2410c;
+        background: #fff7ed;
+      }
+      .bar {
+        height: 8px;
+        background: #eee;
+        border-radius: 4px;
+        overflow: hidden;
+        margin: 8px 0;
+      }
+      .bar i {
+        display: block;
+        height: 100%;
+        background: #c2410c;
+        width: 0;
+      }
+      .dist {
+        font-weight: 700;
+        color: #c2410c;
+      }
+      dialog {
+        border: 0;
+        border-radius: 14px;
+        max-width: 560px;
+        width: 92%;
+      }
+      dialog img {
+        width: 100%;
+        max-height: 240px;
+        object-fit: cover;
+        border-radius: 10px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .warn {
+        color: #b45309;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1 data-k="title"></h1>
+      <select id="lang">
+        <option value="vi">Tiếng Việt</option>
+        <option value="en">English</option>
+        <option value="zh">中文</option>
+        <option value="ja">日本語</option>
+        <option value="ko">한국어</option>
+      </select>
+    </header>
+    <main>
+      <div class="card muted" id="privacy" data-k="privacy"></div>
+      <div class="card row">
+        <button class="p" id="locBtn" data-k="loc"></button>
+        <label
+          ><span data-k="radius"></span>
+          <select id="radius">
+            <option>200</option>
+            <option>500</option>
+            <option selected>1000</option>
+            <option>2000</option>
+            <option>5000</option>
+          </select>
+          m</label
+        >
+      </div>
+      <div id="status" class="muted warn"></div>
+      <div id="banner" class="card banner" hidden>
+        <div id="bText"></div>
+        <div class="row" style="margin-top: 8px">
+          <button id="bDetail" data-k="detail"></button
+          ><button id="bClose" data-k="close"></button
+          ><button class="p" id="bListen" hidden data-k="listen"></button>
+        </div>
+      </div>
+      <div id="manual" class="card" hidden>
+        <div id="mText" class="warn"></div>
+        <div class="row" id="mBtns" style="margin-top: 8px"></div>
+      </div>
+      <div id="player" class="card" hidden>
+        <b id="pName"></b>
+        <div class="bar"><i id="pBar"></i></div>
+        <div class="muted" id="pTime"></div>
+        <div class="row" style="margin-top: 8px">
+          <button id="pPause"></button
+          ><button id="pReplay" data-k="replay"></button
+          ><button id="pDetail" data-k="detail"></button>
+        </div>
+      </div>
+      <div id="list"></div>
+    </main>
+    <dialog id="dlg">
+      <div id="dBody"></div>
+      <div class="row" style="margin-top: 10px">
+        <button class="p" id="dListen" data-k="listen"></button
+        ><button id="dClose" data-k="close"></button>
+      </div>
+    </dialog>
+    <script src="app.js"></script>
+  </body>
+</html>
