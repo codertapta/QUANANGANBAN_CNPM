@@ -204,3 +204,21 @@ app.get(
     });
   }),
 );
+
+app.get("/health", (q, s) => s.json({ ok: 1 }));
+
+(async () => {
+  for (let i = 0; i < 30; i++) {
+    try {
+      await pool.query("SELECT 1");
+      break;
+    } catch {
+      console.log("Đợi MySQL...");
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+
+  app.listen(process.env.PORT || 3002, () =>
+    console.log("analytics-service :3002"),
+  );
+})();
