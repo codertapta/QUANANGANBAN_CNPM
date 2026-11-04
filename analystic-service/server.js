@@ -69,3 +69,41 @@ app.post(
     s.json({ ok: true });
   }),
 );
+
+const TYPES = [
+  "detect",
+  "start",
+  "complete",
+  "dismiss",
+  "pause",
+  "detail",
+  "visit_estimated",
+  "listen_time",
+];
+
+app.post(
+  "/event",
+  w(async (q, s) => {
+    const b = q.body;
+
+    if (!b.session_id || !TYPES.includes(b.type))
+      return s.status(400).json({ error: "bad_event" });
+
+    await pool.query(
+      "INSERT INTO visit_events (session_id,restaurant_id,event_type,lang,value) VALUES (?,?,?,?,?)",
+      [
+        String(b.session_id).slice(0, 64),
+        b.restaurant_id || null,
+        b.type,
+        LANGS.includes(b.lang) ? b.lang : null,
+        b.value == null ? null : +b.value,
+      ],
+    );
+
+    await pool.query("UPDATE visitor_sessions SET last_seen=NOW() WHERE id=?", [
+      String(b.session_id),
+    ]);
+
+    s.json({ ok: true });
+  }),
+);
