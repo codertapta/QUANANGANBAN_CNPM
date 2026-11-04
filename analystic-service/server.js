@@ -107,3 +107,100 @@ app.post(
     s.json({ ok: true });
   }),
 );
+
+app.get(
+  "/dashboard",
+  w(async (q, s) => {
+    const [[ses]] = await pool.query(
+      "SELECT COUNT(*) total, COALESCE(SUM(last_seen>=NOW()-INTERVAL 45 SECOND),0) active FROM visitor_sessions",
+    );
+
+    const [ev] = await pool.query(
+      "SELECT event_type t, COUNT(*) c, COALESCE(SUM(value),0) v FROM visit_events GROUP BY event_type",
+    );
+
+    const [byR] = await pool.query(`
+      SELECT restaurant_id id,
+      SUM(event_type='detect') detect,
+      SUM(event_type='start') start,
+      SUM(event_type='complete') complete,
+      SUM(event_type='dismiss') dismiss,
+      SUM(event_type='detail') detail,
+      SUM(event_type='visit_estimated') visit,
+      COALESCE(SUM(CASE WHEN event_type='listen_time' THEN value END),0) listen
+      FROM visit_events
+      WHERE restaurant_id IS NOT NULL
+      GROUP BY restaurant_id
+    `);
+
+    const [byH] = await pool.query(`
+      SELECT HOUR(created_at) h,
+      COUNT(DISTINCT session_id) sessions,
+      SUM(event_type='detect') detect,
+      SUM(event_type='start') start
+      FROM visit_events
+      GROUP BY h
+      ORDER BY h
+    `);
+
+    const [byL] = await pool.query(`
+      SELECT lang,
+      COUNT(DISTINCT session_id) sessions,
+      SUM(event_type='start') start,
+      SUM(event_type='complete') complete
+      FROM visit_events
+      WHERE lang IS NOT NULL
+      GROUP BY lang
+    `);
+
+    const [byC] = await pool.query(
+      'SELECT COALESCE(country_guess,"?") country, COUNT(*) sessions FROM visitor_sessions GROUP BY country ORDER BY sessions DESC LIMIT 10',
+    );
+
+    let names = {};
+
+    try {
+      (await (await fetch(RURL + "/internal/names")).json()).forEach(
+        (r) => (names[r.id] = r.name),
+      );
+    } catch {}
+
+    const E = {};
+
+    ev.forEach((e) => (E[e.t] = { count: +e.c, value: +e.v }));
+
+    s.json({
+      sessions: { total: +ses.total, active: +ses.active },
+      events: E,
+
+      by_restaurant: byR.map((r) => ({
+        id: r.id,
+        name: names[r.id] || "(đã xóa) #" + r.id,
+        ...Object.fromEntries(
+          Object.entries(r)
+            .filter(([k]) => k !== "id")
+            .map(([k, v]) => [k, +v]),
+        ),
+      })),
+
+      by_hour: byH.map((r) => ({
+        h: r.h,
+        sessions: +r.sessions,
+        detect: +r.detect,
+        start: +r.start,
+      })),
+
+      by_lang: byL.map((r) => ({
+        lang: r.lang,
+        sessions: +r.sessions,
+        start: +r.start,
+        complete: +r.complete,
+      })),
+
+      by_country: byC.map((r) => ({
+        country: r.country,
+        sessions: +r.sessions,
+      })),
+    });
+  }),
+);
