@@ -8,3 +8,4 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME || 'foodguide', charset: 'utf8mb4', connectionLimit: 10, timezone: '+07:00',
   ssl: process.env.DB_SSL ? { rejectUnauthorized: false } : undefined
 });
+const w = f => (q, s) => f(q, s).catch(e => { console.error(e); s.status(500).json({ error: 'server_error' }); });
