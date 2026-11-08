@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Admin - Food Guide</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #f3f4f6;
+        color: #222;
+      }
+      header {
+        background: #1f2937;
+        color: #fff;
+        padding: 12px 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 12px;
+      }
+      .card {
+        background: #fff;
+        border-radius: 10px;
+        padding: 14px;
+        margin: 10px 0;
+        box-shadow: 0 1px 3px #0002;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 10px;
+      }
+      .kpi {
+        background: #f9fafb;
+        border-radius: 8px;
+        padding: 10px;
+      }
+      .kpi b {
+        font-size: 24px;
+        display: block;
+      }
+      input,
+      textarea,
+      select,
+      button {
+        font: inherit;
+        padding: 8px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        width: 100%;
+      }
+      button {
+        width: auto;
+        cursor: pointer;
+      }
+      button.p {
+        background: #c2410c;
+        color: #fff;
+        border-color: #c2410c;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+      td,
+      th {
+        padding: 6px;
+        border-bottom: 1px solid #eee;
+        text-align: left;
+      }
+      .tabs button {
+        margin-right: 6px;
+      }
+      .tabs .on {
+        background: #1f2937;
+        color: #fff;
+      }
+      .dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #22c55e;
+        margin-right: 6px;
+        animation: p 1.2s infinite;
+      }
+      @keyframes p {
+        50% {
+          opacity: 0.3;
+        }
+      }
+      .bar {
+        background: #fdba74;
+        height: 14px;
+        border-radius: 3px;
+      }
+      .f {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 8px;
+      }
+      .muted {
+        color: #6b7280;
+        font-size: 13px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      h3 {
+        margin: 0 0 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <b>Food Guide · Admin</b
+      ><span
+        ><span id="act"></span> <button id="out" hidden>Đăng xuất</button></span
+      >
+    </header>
+    <main>
+      <div id="login" class="card" style="max-width: 340px; margin: 40px auto">
+        <h3>Đăng nhập Admin</h3>
+        <div class="f" style="grid-template-columns: 1fr">
+          <input id="u" placeholder="Tài khoản" /><input
+            id="pw"
+            type="password"
+            placeholder="Mật khẩu"
+          /><button class="p" id="go">Đăng nhập</button>
+          <div id="lerr" class="muted"></div>
+        </div>
+      </div>
+      <div id="app" hidden>
+        <div class="tabs">
+          <button data-t="dash" class="on">Dashboard</button
+          ><button data-t="rest">Quản lý quán</button>
+        </div>
+        <section id="dash"></section>
+        <section id="rest" hidden>
+          <div class="card">
+            <h3 id="ftitle">Thêm quán</h3>
+            <div class="f">
+              <input id="name" placeholder="Tên quán" /><input
+                id="addr"
+                placeholder="Địa chỉ"
+              /><input id="lat" placeholder="Vĩ độ (vd 10.7725)" /><input
+                id="lng"
+                placeholder="Kinh độ (vd 106.6980)"
+              />
+              <input id="img" type="file" accept="image/*" /><select id="st">
+                <option value="active">Đang hoạt động</option>
+                <option value="hidden">Ẩn</option>
+              </select>
+            </div>
+            <textarea
+              id="desc"
+              rows="4"
+              placeholder="Mô tả (tiếng Việt) - sẽ tự dịch sang EN/ZH/JA/KO bằng MyMemory khi lưu"
+              style="margin: 8px 0"
+            ></textarea>
+            <button class="p" id="save">Lưu</button>
+            <button id="reset">Hủy sửa</button>
+            <button id="here">Lấy tọa độ của tôi</button>
+            <span id="fmsg" class="muted"></span>
+          </div>
+          <div class="card" style="overflow: auto">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tên</th>
+                  <th>Địa chỉ</th>
+                  <th>Tọa độ</th>
+                  <th>Trạng thái</th>
+                  <th>Bản dịch</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="rows"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+    <script src="admin.js"></script>
+  </body>
+</html>
