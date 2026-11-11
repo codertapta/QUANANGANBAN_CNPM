@@ -39,3 +39,11 @@ async function translateAll(id, desc) {
   }
   return result;
 }
+
+// ---------- Auth ----------
+const adminOnly = (q, s, n) => { try { jwt.verify((q.headers.authorization || '').replace('Bearer ', ''), SECRET); n(); } catch { s.status(401).json({ error: 'unauthorized' }); } };
+app.post('/auth/login', w(async (q, s) => {
+  const [[u]] = await pool.query('SELECT * FROM admin_users WHERE username=?', [q.body.username || '']);
+  if (!u || !(await bcrypt.compare(q.body.password || '', u.password_hash))) return s.status(401).json({ error: 'Sai tài khoản hoặc mật khẩu' });
+  s.json({ token: jwt.sign({ uid: u.id, role: 'admin' }, SECRET, { expiresIn: '8h' }) });
+}));
