@@ -102,3 +102,7 @@ app.post('/admin/restaurants/:id/retranslate', w(async (q, s) => {
   r ? s.json({ translations: await translateAll(+q.params.id, r.description) }) : s.status(404).json({ error: 'not_found' });
 }));
 app.delete('/admin/restaurants/:id', w(async (q, s) => { await pool.query('DELETE FROM restaurants WHERE id=?', [q.params.id]); s.json({ ok: true }); }));
+
+// ---------- Internal (service-to-service) ----------
+app.get('/internal/names', w(async (q, s) => { const [r] = await pool.query('SELECT id,name FROM restaurants'); s.json(r); }));
+app.get('/health', (q, s) => s.json({ ok: 1 }));
