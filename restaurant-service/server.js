@@ -70,3 +70,35 @@ app.get('/public/restaurants/:id', w(async (q, s) => {
      LEFT JOIN restaurant_translations t ON t.restaurant_id=r.id AND t.lang=? WHERE r.id=? AND r.status='active'`, [lang, q.params.id]);
   r ? s.json(r) : s.status(404).json({ error: 'not_found' });
 }));
+
+// ---------- Admin ----------
+app.use('/admin', adminOnly);
+const valid = b => b.name && isFinite(+b.lat) && isFinite(+b.lng) && Math.abs(+b.lat) <= 90 && Math.abs(+b.lng) <= 180;
+app.get('/admin/restaurants', w(async (q, s) => {
+  const [rows] = await pool.query(`SELECT r.id,r.name,r.address,r.image_url,r.description,r.lat,r.lng,r.status,
+    (SELECT GROUP_CONCAT(lang,':',status) FROM restaurant_translations t WHERE t.restaurant_id=r.id) tr FROM restaurants r ORDER BY r.id DESC`);
+  s.json(rows);
+}));
+app.post('/admin/restaurants', w(async (q, s) => {
+  const b = q.body; if (!valid(b)) return s.status(400).json({ error: 'Thiếu tên hoặc tọa độ không hợp lệ' });
+  const [r] = await pool.query('INSERT INTO restaurants (name,address,image_url,description,lat,lng,status) VALUES (?,?,?,?,?,?,?)',
+    [b.name, b.address || '', b.image_url || null, b.description || '', +b.lat, +b.lng, b.status === 'hidden' ? 'hidden' : 'active']);
+  s.json({ id: r.insertId, translations: await translateAll(r.insertId, b.description) });
+}));
+app.put('/admin/restaurants/:id', w(async (q, s) => {
+  const b = q.body; if (!valid(b)) return s.status(400).json({ error: 'Thiếu tên hoặc tọa độ không hợp lệ' });
+  const [[old]] = await pool.query('SELECT description FROM restaurants WHERE id=?', [q.params.id]);
+  if (!old) return s.status(404).json({ error: 'not_found' });
+  await pool.query('UPDATE restaurants SET name=?,address=?,image_url=COALESCE(?,image_url),description=?,lat=?,lng=?,status=? WHERE id=?',
+    [b.name, b.address || '', b.image_url || null, b.description || '', +b.lat, +b.lng, b.status === 'hidden' ? 'hidden' : 'active', q.params.id]);
+  // chỉ dịch lại khi mô tả thay đổi
+  s.json({ ok: true, translations: old.description !== (b.description || '') ? await translateAll(+q.params.id, b.description) : null });
+}));
+app.patch('/admin/restaurants/:id/status', w(async (q, s) => {
+  await pool.query('UPDATE restaurants SET status=? WHERE id=?', [q.body.status === 'hidden' ? 'hidden' : 'active', q.params.id]); s.json({ ok: true });
+}));
+app.post('/admin/restaurants/:id/retranslate', w(async (q, s) => {
+  const [[r]] = await pool.query('SELECT description FROM restaurants WHERE id=?', [q.params.id]);
+  r ? s.json({ translations: await translateAll(+q.params.id, r.description) }) : s.status(404).json({ error: 'not_found' });
+}));
+app.delete('/admin/restaurants/:id', w(async (q, s) => { await pool.query('DELETE FROM restaurants WHERE id=?', [q.params.id]); s.json({ ok: true }); }));
