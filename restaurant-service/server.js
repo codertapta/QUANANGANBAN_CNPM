@@ -9,3 +9,33 @@ const pool = mysql.createPool({
   ssl: process.env.DB_SSL ? { rejectUnauthorized: false } : undefined
 });
 const w = f => (q, s) => f(q, s).catch(e => { console.error(e); s.status(500).json({ error: 'server_error' }); });
+
+// ---------- Dịch (MyMemory) ----------
+function chunk(t) {
+  const out = []; let cur = '';
+  for (const s of t.split(/(?<=[.!?。\n])\s*/)) { if ((cur + s).length > 420) { if (cur) out.push(cur); cur = s; } else cur += (cur ? ' ' : '') + s; }
+  if (cur) out.push(cur); return out;
+}
+async function mymemory(text, lang) {
+  let res = '';
+  for (const c of chunk(text)) {
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(c)}&langpair=vi|${MM[lang]}` + (process.env.MYMEMORY_EMAIL ? `&de=${process.env.MYMEMORY_EMAIL}` : '');
+    const j = await (await fetch(url)).json();
+    const t = j && j.responseData && j.responseData.translatedText;
+    if (!t || +j.responseStatus !== 200 || /MYMEMORY WARNING|INVALID/i.test(t)) throw new Error('mymemory_failed');
+    res += (res ? ' ' : '') + t;
+  }
+  return res;
+}
+const upsertTr = (id, lang, d, st) => pool.query(
+  'INSERT INTO restaurant_translations (restaurant_id,lang,description,status) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE description=VALUES(description), status=VALUES(status)', [id, lang, d, st]);
+// Dịch 1 lần khi Admin lưu; lỗi/hết hạn mức -> lưu bản tiếng Việt với status 'fallback' (dịch lại sau)
+async function translateAll(id, desc) {
+  await upsertTr(id, 'vi', desc || '', 'ok');
+  const result = { vi: 'ok' };
+  for (const l of Object.keys(MM)) {
+    try { await upsertTr(id, l, desc ? await mymemory(desc, l) : '', 'ok'); result[l] = 'ok'; }
+    catch (e) { await upsertTr(id, l, desc || '', 'fallback'); result[l] = 'fallback'; }
+  }
+  return result;
+}
