@@ -106,3 +106,16 @@ app.delete('/admin/restaurants/:id', w(async (q, s) => { await pool.query('DELET
 // ---------- Internal (service-to-service) ----------
 app.get('/internal/names', w(async (q, s) => { const [r] = await pool.query('SELECT id,name FROM restaurants'); s.json(r); }));
 app.get('/health', (q, s) => s.json({ ok: 1 }));
+
+(async () => {
+  for (let i = 0; i < 30; i++) { try { await pool.query('SELECT 1'); break; } catch { console.log('Đợi MySQL...'); await new Promise(r => setTimeout(r, 2000)); } }
+  const [[c]] = await pool.query('SELECT COUNT(*) n FROM admin_users');
+  if (!c.n) { await pool.query('INSERT INTO admin_users (username,password_hash) VALUES (?,?)', [process.env.ADMIN_USER || 'admin', await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 10)]); console.log('Đã tạo admin mặc định'); }
+  app.listen(process.env.PORT || 3001, () => console.log('restaurant-service :3001'));
+  // Nền: dịch các quán chưa có bản dịch / bản dịch lỗi
+  try {
+    const [todo] = await pool.query(`SELECT DISTINCT r.id,r.description FROM restaurants r LEFT JOIN restaurant_translations t ON t.restaurant_id=r.id
+      WHERE t.id IS NULL OR t.status='fallback'`);
+    for (const r of todo) await translateAll(r.id, r.description);
+  } catch (e) { console.error('backfill', e.message); }
+})();
